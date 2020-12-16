@@ -44,7 +44,7 @@ X-Amz-Cf-Id: Zvwn8dSC8uYxcJzNsLONjovFCuTitG_-vAvHhEjc6oOdE_nkLYQH3g==
 Age: 99
 
 24540
- */
+*/
 var wg = &sync.WaitGroup{}
 var client = &http.Client{Timeout: 20 * time.Second}
 var adStartRange = 0
@@ -77,19 +77,21 @@ func main() {
 	fmt.Println("Requests : " + strconv.Itoa(requests))
 	time.Sleep(time.Second)
 
+	http.HandleFunc("/", senddata)
+	http.ListenAndServe(":4000", nil)
 }
 
 func fetchAdProperty(propertyId int) {
 	defer wg.Done()
 	url := "https://classifieds.immowebapi.be/search/3/" + strconv.Itoa(propertyId)
 	req, err := http.NewRequest("GET", url, nil)
-	req.Header.Set("Host","classifieds.immowebapi.be")
-	req.Header.Set("x-api-key","q0H4TxoSZ9arZTAtQMa3AaKYviGiEluEuKjzUAj6")
+	req.Header.Set("Host", "classifieds.immowebapi.be")
+	req.Header.Set("x-api-key", "q0H4TxoSZ9arZTAtQMa3AaKYviGiEluEuKjzUAj6")
 	req.Header.Set("Accept", "*/*")
-	req.Header.Set("User-Agent","Immoweb-iOS/5.19.2")
-	req.Header.Set("Accept-Language","fr")
-	req.Header.Set("Accept-Encoding","gzip;q=1.0, compress;q=0.5")
-	req.Header.Set("Connection","keep-alive")
+	req.Header.Set("User-Agent", "Immoweb-iOS/5.19.2")
+	req.Header.Set("Accept-Language", "fr")
+	req.Header.Set("Accept-Encoding", "gzip;q=1.0, compress;q=0.5")
+	req.Header.Set("Connection", "keep-alive")
 
 	resp, err := client.Do(req)
 
@@ -121,13 +123,13 @@ func fetchAdProperty(propertyId int) {
 func countAds() {
 	url := "https://classifieds.immowebapi.be/search/3/count?countries=BE&isSoldOrRented=false&priceType=MONTHLY_RENTAL_PRICE&propertyTypes=APARTMENT%2CHOUSE&transactionTypes=FOR_RENT"
 	req, err := http.NewRequest("GET", url, nil)
-	req.Header.Set("Host","classifieds.immowebapi.be")
-	req.Header.Set("x-api-key","q0H4TxoSZ9arZTAtQMa3AaKYviGiEluEuKjzUAj6")
+	req.Header.Set("Host", "classifieds.immowebapi.be")
+	req.Header.Set("x-api-key", "q0H4TxoSZ9arZTAtQMa3AaKYviGiEluEuKjzUAj6")
 	req.Header.Set("Accept", "*/*")
-	req.Header.Set("User-Agent","Immoweb-iOS/5.19.2")
-	req.Header.Set("Accept-Language","fr")
-	req.Header.Set("Accept-Encoding","gzip;q=1.0, compress;q=0.5")
-	req.Header.Set("Connection","keep-alive")
+	req.Header.Set("User-Agent", "Immoweb-iOS/5.19.2")
+	req.Header.Set("Accept-Language", "fr")
+	req.Header.Set("Accept-Encoding", "gzip;q=1.0, compress;q=0.5")
+	req.Header.Set("Connection", "keep-alive")
 
 	resp, err := client.Do(req)
 
@@ -143,18 +145,18 @@ func countAds() {
 	println("MaxPage =", maxPage)
 }
 
-func fetchAdsListInRange(){
+func fetchAdsListInRange() {
 	url := "https://classifieds.immowebapi.be/search/3/query?countries=BE&isSoldOrRented=false&minBedroomCount=2&priceType=MONTHLY_RENTAL_PRICE&propertyTypes=APARTMENT%2CHOUSE&range=" + strconv.Itoa(adStartRange) + "-" + strconv.Itoa(adEndRange) + "&transactionTypes=FOR_RENT"
 	fmt.Println(url)
 
 	req, err := http.NewRequest("GET", url, nil)
-	req.Header.Set("Host","classifieds.immowebapi.be")
-	req.Header.Set("x-api-key","q0H4TxoSZ9arZTAtQMa3AaKYviGiEluEuKjzUAj6")
+	req.Header.Set("Host", "classifieds.immowebapi.be")
+	req.Header.Set("x-api-key", "q0H4TxoSZ9arZTAtQMa3AaKYviGiEluEuKjzUAj6")
 	req.Header.Set("Accept", "*/*")
-	req.Header.Set("User-Agent","Immoweb-iOS/5.19.2")
-	req.Header.Set("Accept-Language","fr")
-	req.Header.Set("Accept-Encoding","gzip;q=1.0, compress;q=0.5")
-	req.Header.Set("Connection","keep-alive")
+	req.Header.Set("User-Agent", "Immoweb-iOS/5.19.2")
+	req.Header.Set("Accept-Language", "fr")
+	req.Header.Set("Accept-Encoding", "gzip;q=1.0, compress;q=0.5")
+	req.Header.Set("Connection", "keep-alive")
 
 	resp, err := client.Do(req)
 
@@ -167,7 +169,6 @@ func fetchAdsListInRange(){
 	if err != nil {
 		panic(err)
 	}
-
 
 	var jsonData AdsFromSearchQuery
 
@@ -182,12 +183,20 @@ func fetchAdsListInRange(){
 		//fmt.Println(jsonData[i].Property.Title)
 		if jsonData[i].Transaction.SoldOrRented.IsSoldOrRented == true {
 			//fmt.Println("$***>This property is already sold/rented")
-		}else{
+		} else {
 			//fmt.Println("$***>Available")
 			adsIds = append(adsIds, jsonData[i].ID)
 		}
 	}
 }
+func senddata(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(jsonData)
+	js, err := json.Marshal(jsonData)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-
-
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(js)
+}
