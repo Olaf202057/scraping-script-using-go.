@@ -42,11 +42,11 @@ type AdProperty struct {
 			Exists bool `json:"exists"`
 		} `json:"diningRoom"`
 		Building struct {
-			Condition         string `json:"condition"`
-			ConstructionYear  int    `json:"constructionYear"`
-			FloorCount        int    `json:"floorCount"`
-			FacadeCount       int    `json:"facadeCount"`
-			StreetFacadeWidth float32    `json:"streetFacadeWidth"`
+			Condition         string  `json:"condition"`
+			ConstructionYear  int     `json:"constructionYear"`
+			FloorCount        int     `json:"floorCount"`
+			FacadeCount       int     `json:"facadeCount"`
+			StreetFacadeWidth float32 `json:"streetFacadeWidth"`
 		} `json:"building"`
 		Subtype string `json:"subtype"`
 		Kitchen struct {
@@ -80,7 +80,7 @@ type AdProperty struct {
 			HasVisiophone  bool `json:"hasVisiophone"`
 			HasCableTV     bool `json:"hasCableTV"`
 		} `json:"privateEquipment"`
-		MonthlyCosts int `json:"monthlyCosts"`
+		MonthlyCosts float64 `json:"monthlyCosts"`
 		Bedroom      struct {
 			Count int `json:"count"`
 			Items []struct {
@@ -284,8 +284,8 @@ type AdsFromSearchQuery []struct {
 				Longitude float64 `json:"longitude"`
 			} `json:"geoPoint"`
 		} `json:"location"`
-		Type         string `json:"type"`
-		MonthlyCosts int    `json:"monthlyCosts"`
+		Type         string  `json:"type"`
+		MonthlyCosts float64 `json:"monthlyCosts"`
 		Bedroom      struct {
 			Count int `json:"count"`
 		} `json:"bedroom"`

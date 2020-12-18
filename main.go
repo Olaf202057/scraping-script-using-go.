@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -46,7 +47,7 @@ Age: 99
 24540
 */
 var wg = &sync.WaitGroup{}
-var client = &http.Client{Timeout: 20 * time.Second}
+var client = &http.Client{Timeout: 500 * time.Second}
 var adStartRange = 0
 var adSlice = 10
 var adEndRange = 9
@@ -55,20 +56,22 @@ var maxPage = 0
 var adsCount = 0
 var adsIds []int
 var requests int = 0
+var jsonData AdProperty
 
 func main() {
 	start := time.Now()
-
 	fmt.Println("Starting...")
 
 	countAds()
+
 	if adsCount > 0 {
-		fetchAdsListInRange()
-	}
-	for i := 0; i < len(adsIds); i++ {
-		wg.Add(1)
-		fmt.Println("#ID found :", adsIds[i])
-		go fetchAdProperty(adsIds[i])
+		http.HandleFunc("/getMaxPage", getMaxPage)
+		http.HandleFunc("/currentPageData", currentPageData)
+
+		err := http.ListenAndServe(":4000", nil)
+		if err != nil {
+			log.Fatal("ListenAndServe: ", err)
+		}
 	}
 	wg.Wait()
 	elapsedTime := time.Since(start)
@@ -76,14 +79,11 @@ func main() {
 	fmt.Println("Total Time For Execution: " + elapsedTime.String())
 	fmt.Println("Requests : " + strconv.Itoa(requests))
 	time.Sleep(time.Second)
-
-	http.HandleFunc("/", senddata)
-	http.ListenAndServe(":4000", nil)
 }
 
-func fetchAdProperty(propertyId int) {
+func fetchAdProperty(propertyID int) string {
 	defer wg.Done()
-	url := "https://classifieds.immowebapi.be/search/3/" + strconv.Itoa(propertyId)
+	url := "https://classifieds.immowebapi.be/search/3/" + strconv.Itoa(propertyID)
 	req, err := http.NewRequest("GET", url, nil)
 	req.Header.Set("Host", "classifieds.immowebapi.be")
 	req.Header.Set("x-api-key", "q0H4TxoSZ9arZTAtQMa3AaKYviGiEluEuKjzUAj6")
@@ -99,7 +99,7 @@ func fetchAdProperty(propertyId int) {
 		panic(err)
 	}
 
-	jsonDataFromHttp, err := ioutil.ReadAll(resp.Body)
+	jsonDataFromHTTP, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
 		panic(err)
@@ -107,17 +107,15 @@ func fetchAdProperty(propertyId int) {
 
 	var jsonData AdProperty
 
-	err = json.Unmarshal([]byte(jsonDataFromHttp), &jsonData) // here!
+	err = json.Unmarshal([]byte(jsonDataFromHTTP), &jsonData) // here!
 
 	if err != nil {
 		println(err)
 		panic(err)
 	}
+	requests++
 
-	fmt.Println("===Property===")
-	fmt.Println(jsonData)
-	requests += 1
-
+	return string([]byte(jsonDataFromHTTP))
 }
 
 func countAds() {
@@ -141,13 +139,11 @@ func countAds() {
 
 	adsCount, _ = strconv.Atoi(string(rawResult))
 	maxPage = int(math.Round(float64(adsCount / adSlice)))
-	println("AdsCount =", adsCount)
-	println("MaxPage =", maxPage)
 }
 
-func fetchAdsListInRange() {
-	url := "https://classifieds.immowebapi.be/search/3/query?countries=BE&isSoldOrRented=false&minBedroomCount=2&priceType=MONTHLY_RENTAL_PRICE&propertyTypes=APARTMENT%2CHOUSE&range=" + strconv.Itoa(adStartRange) + "-" + strconv.Itoa(adEndRange) + "&transactionTypes=FOR_RENT"
-	fmt.Println(url)
+func fetchAdsListInRange(j *int) {
+	var currentPageNumber = *j
+	url := "https://classifieds.immowebapi.be/search/3/query?countries=BE&isSoldOrRented=false&minBedroomCount=2&priceType=MONTHLY_RENTAL_PRICE&propertyTypes=APARTMENT%2CHOUSE&range=" + strconv.Itoa((adStartRange+currentPageNumber)*(adEndRange-adStartRange+1)) + "-" + strconv.Itoa(adEndRange+currentPageNumber*(adEndRange-adStartRange+1)) + "&transactionTypes=FOR_RENT"
 
 	req, err := http.NewRequest("GET", url, nil)
 	req.Header.Set("Host", "classifieds.immowebapi.be")
@@ -164,7 +160,7 @@ func fetchAdsListInRange() {
 		panic(err)
 	}
 
-	jsonDataFromHttp, err := ioutil.ReadAll(resp.Body)
+	jsonDataFromHTTP, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
 		panic(err)
@@ -172,13 +168,12 @@ func fetchAdsListInRange() {
 
 	var jsonData AdsFromSearchQuery
 
-	err = json.Unmarshal([]byte(jsonDataFromHttp), &jsonData) // here!
+	err = json.Unmarshal([]byte(jsonDataFromHTTP), &jsonData) // here!
 
 	if err != nil {
 		println(err)
 		panic(err)
 	}
-
 	for i := 0; i < len(jsonData); i++ {
 		//fmt.Println(jsonData[i].Property.Title)
 		if jsonData[i].Transaction.SoldOrRented.IsSoldOrRented == true {
@@ -189,14 +184,29 @@ func fetchAdsListInRange() {
 		}
 	}
 }
-func senddata(w http.ResponseWriter, r *http.Request) {
-	fmt.Println(jsonData)
-	js, err := json.Marshal(jsonData)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+func getMaxPage(w http.ResponseWriter, req *http.Request) {
+	fmt.Fprintf(w, strconv.Itoa(maxPage))
+}
+func currentPageData(w http.ResponseWriter, req *http.Request) {
+	if err := req.ParseForm(); err != nil {
+		println("ParseForm() err: %v", err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(js)
+	var pageNum int
+	var res string = "["
+	pageNum, _ = strconv.Atoi(req.FormValue("pageNumber"))
+	fetchAdsListInRange(&pageNum)
+
+	for i := 0; i < len(adsIds); i++ {
+		wg.Add(1)
+		fmt.Println("#ID found :", adsIds[i])
+		if i > 0 {
+			res = res + ","
+		}
+		res = res + fetchAdProperty(adsIds[i])
+	}
+	res = res + "]"
+	fmt.Fprintf(w, string(res))
 }
